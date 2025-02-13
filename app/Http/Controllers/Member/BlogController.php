@@ -31,7 +31,7 @@ class BlogController extends Controller
      */
     public function create()
     {
-        //
+        return view('member.blogs.create');
     }
 
     /**
@@ -39,7 +39,40 @@ class BlogController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'title'=>'required',
+            'content'=>'required',
+            'thumbnail'=>'image|mimes:jpeg,jpg,png|max:10240'
+        ],[
+            'title.required'=>'Judul wajib diisi',
+            'content.required'=>'Konten wajib diisi',
+            'thumbnail.mimes'=>'Ekstensi yang diperbolehkan hanya JEPG, JPG, dan  PNG',
+            'thumbnail.image'=>'Hanya gambar yang diperbolehkan',
+            'thumbnail.max'=>'Ukuran maksismum untuk thumbnail hanya 10MB',
+
+        ]);
+
+        if($request->hasFile('thumbnail')){
+
+            $image = $request->file('thumbnail');
+            $image_name = time(). "_" . $image->getClientOriginalName();
+            $destination_path = public_path(getenv('CUSTOM_THUMBNAIL_LOCATION'));
+            $image->move($destination_path,$image_name );
+        }
+
+        $data=[
+            'title'=>$request->title,
+            'description'=>$request->description,
+            'content'=>$request->content,
+            'status'=>$request->status,
+            'thumbnail'=>isset($image_name)?$image_name: null,
+            'slug' => $this->generateSlug($request->title),
+            'user_id'=>Auth::user()->id
+
+        ];
+
+        Post::create($data);
+        return redirect()->route('member.blogs.index')->with('success', 'Data berhasil di-tambahkan');
     }
 
     /**
@@ -63,7 +96,7 @@ class BlogController extends Controller
     /**
      * Update the specified resource in storage.
      */
-        public function update(Request $request, Post $post)
+    public function update(Request $request, Post $post)
     {
         $request->validate([
             'title'=>'required',
@@ -92,7 +125,7 @@ class BlogController extends Controller
             $image->move($destination_path,$image_name );
         }
 
-        /*$data=[
+        $data=[
             'title'=>$request->title,
             'description'=>$request->description,
             'content'=>$request->content,
@@ -103,8 +136,7 @@ class BlogController extends Controller
         ];
 
         Post::where('id',$post->id)->update($data);
-        return redirect()->route('member.blogs.index')->with('success', 'Data berhasil di-update');*/
-    
+        return redirect()->route('member.blogs.index')->with('success', 'Data berhasil di-update');
     }
 
     /**
@@ -112,8 +144,18 @@ class BlogController extends Controller
      */
     public function destroy(Post $post)
     {
-        //
+
+        Gate::authorize('delete',$post);
+
+        if(isset($post->thumbnail) && file_exists(public_path(getenv('CUSTOM_THUMBNAIL_LOCATION'))."/".
+            $post->thumbnail)){
+                unlink(public_path(getenv('CUSTOM_THUMBNAIL_LOCATION'))."/".
+                $post->thumbnail);
+            }
+        Post::where('id', $post->id)->delete();
+        return redirect()->route('member.blogs.index')->with('success','Data berhasil dihapus' . $post->id);
     }
+
 
     private function generateSlug($title, $id=null){
         $slug = Str::slug($title);
